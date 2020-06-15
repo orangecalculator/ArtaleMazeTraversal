@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<title>Maze Traversal</title>
+</head>
+
+<body>
+<div>
+Artale Maze Traversal Problem v.AllStart <br/>
+By orangecalculator at <a href="http://github.com/orangecalculator" target="_blank">github.com/orangecalculator</a>
+<!-- reference: https://www.w3schools.com/html/html_links.asp -->
+</div>
+<p>
+Select rooms to pass by. <br/>
+<table>
+	<tr>
+		<td>
+			<input type="checkbox" name="room" id="room01">  1
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room02">  2
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room03">  3
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room04">  4
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room05">  5
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room06">  6
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room07">  7
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room08">  8
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<input type="checkbox" name="room" id="room09">  9
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room10"> 10
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room11"> 11
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room12"> 12
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room13"> 13
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room14"> 14
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room15"> 15
+		</td>
+		<td>
+			<input type="checkbox" name="room" id="room16"> 16
+		</td>
+	</tr>
+</table>
+<br />
+<input type="button" name="submitdata" value="submit" onclick='view_paths();'>
+<br />
+<input type="button" name="sync" value="sync" onclick='
+	let roominput = document.getElementsByName("room");
+	let syncinfo = document.getElementById("syncinfo");
+	if(syncinfo.innerHTML === ""){
+		syncinfo.innerHTML = "";
+		for(let i=0;i<roominput.length;i++){
+			syncinfo.innerHTML += roominput[i].id;
+			syncinfo.innerHTML += roominput[i].checked;
+			// document.write(roominput[i].checked);
+			syncinfo.innerHTML += "<br />";
+		}
+	} else syncinfo.innerHTML = "";
+
+'>
+<span id="syncinfo"></span>
+</p>
+<script>
+// document.write("hello from script");
+
+//alert("hello inside script");
+
+function next_room(room, move){
+	// forward step
+    // forward step
+    if(room==16) return (move==2 ? 9 : 16);
+    else if(room==9 && move==2) return 16;
+    else if(move==1) return (room+3)%15+1;
+    else if(move==2) return (room+6)%15+1;
+    else return (room+11)%15+1;
+}
+
+function inv_next_room(room,move){
+    if(room==16) return (move==2 ? 9 : 16);
+    else if(move==1) return (room+10)%15+1;
+    else if(move==2) return (room!=1 ?(room+7)%15+1 : 1);
+    else return (room+2)%15+1;
+}
+
+function inv_moves(room){
+	var moves = Array();
+	
+	if(room == 16) return [[9,2]];
+	
+	for(let move=1;move<=3;++move){
+		let inv_room = inv_next_room(room, move);
+		if(inv_room == room) continue;
+		moves.push([inv_room, move]);
+	}
+	
+	if(room == 9) moves.push([16, 2]);
+	
+	return moves;
+}
+
+function move_decode(move){
+    if(move == 1) return 'L';
+    else if(move == 2) return 'M';
+    else if(move == 3) return 'R';
+    else return ' ';
+}
+
+class dim_loc{
+	constructor(req, location){
+		if(location>0)
+			this.req = (req | (1<<(location-1)));
+		this.location = location;
+	}
+};
+
+class policy{
+	constructor(cur, next, move, dist){
+		this.cur = cur; // dim_loc
+		this.next = next; // dim_loc
+		this.move = move;
+		this.dist = dist;
+	}
+};
+
+function calc_paths(required){
+	var dest = 16;
+	var req = 0;
+	
+	required[dest] = false;
+	for(let room = 1; room<=16; ++room){
+		if(required[room])
+			req |= (1<<(room-1));
+	}
+	
+	// BFS based search
+	var roomtrace = Array(); // Queue
+	var mem = new Map(); // map<pair<int,int>,policy>
+	
+	var req_add = function(last_req, loc){
+		return (last_req | (1<<(loc-1)));
+	};
+	var edge_encode = function(req , loc){
+		loc -= 1;
+		req |= (1<<loc);
+		return (req.toString(0x10).padStart(4,'0')+loc.toString(0x10));
+		//return (req_add(req, loc).toString(0x10).padStart(4,'0')+(loc-1).toString(0x10));
+	};
+	var edge_decode = function(edgeenc){
+		var edgedec = Array(2);
+		edgedec[0] = parseInt(edgeenc.substr(0,4),0x10);
+		edgedec[1] = parseInt(edgeenc[4],0x10) + 1;
+		return edgedec;
+	};
+	
+	var found = Array(17).fill(null);
+	var found_count = 0;
+	
+	// [{ shortage encoding, current location}]
+	{
+		let null_loc = new dim_loc(0,0);
+		mem.set(edge_encode(0,0), new policy(null_loc,null_loc,0,0));
+		let last_move = new policy(new dim_loc(0,dest),null_loc,0,0);
+		mem.set(edge_encode(0,dest), last_move);
+		roomtrace.push(last_move);
+	}
+	
+	while(roomtrace.length != 0){
+		let current = roomtrace.shift();
+		
+		//console.log(current.cur.req, req, found[current.cur.location]);
+		if((current.cur.req & req) == req && found[current.cur.location] == null){
+			// console.log("found ",current," in ",current.cur.location);
+			found[current.cur.location] = current;
+			found_count++;
+			if(found_count == 16) break;
+		}
+		
+		let inv_move_list = inv_moves(current.cur.location);
+		//console.log(inv_move_list);
+		for(let inv_move of inv_move_list){
+			let last = inv_move[0];
+			let move = inv_move[1];
+			//console.log(`last ${last} move ${move}`);
+			
+			const last_encode = edge_encode(current.cur.req, last);
+			if(!mem.has(last_encode)){
+				let last_policy = new policy(new dim_loc(current.cur.req, last), current.cur, move, current.dist+1);
+				mem.set(last_encode, last_policy);
+                roomtrace.push(last_policy);
+			}
+		}
+	}
+	
+	// console.log("calc complete");
+	
+	var rtns = Array();
+	
+	edge_encode = function(obj_loc){
+		return (obj_loc.req.toString(0x10).padStart(4,'0')+(obj_loc.location - 1).toString(0x10));
+		//return (req_add(req, loc).toString(0x10).padStart(4,'0')+(loc-1).toString(0x10));
+	};
+	// console.log(found);
+	for(let start=1;start<=16;++start){
+		// console.log(`producing output for room ${start}`);
+		let rtn = "";
+		rtn += (required[start] ? '*' : ' ');
+		rtn += ' ';
+		rtn += start.toString().padStart(2,' ');
+		// console.log(found[start]);
+		for(let next = mem.get(edge_encode(found[start].cur));
+			next.next.location != 0; next = mem.get(edge_encode(next.next))){
+			rtn += ' ';
+			rtn += move_decode(next.move);
+			rtn += " -> ";
+			rtn += (required[next.next.location] ? '*' : ' ');
+			rtn += ' ';
+			rtn += next.next.location.toString().padStart(2,' ');
+		}
+		console.log(rtn);
+		rtns.push(rtn);
+	}
+	
+	return rtns;
+/*
+    
+    for(int start=1;start<=16;++start){
+        printf("%c %2d",required[start] ? '*' : ' ',start);
+        for(policy next = mem[{found[start],start}];
+                next.next.location!=0;next = mem[{next.next.req,next.next.location}])
+            printf(" %c -> %c %2d",move_decode(next.move),required[next.next.location] ? '*' : ' ',next.next.location);
+        printf("\n");
+    }
+    
+}
+*/
+	
+	var dummyreturn = ["   1 M ->    8 M ->   15 M -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"   2 R ->   14 L ->    3 L -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"   3 L -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"   4 M -> * 11 M ->    3 L -> *  7 R ->    4 R ->    1 L ->    5 L ->    9 M ->   16",
+"   5 R ->    2 R ->   14 L ->    3 L -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"   6 R ->    3 L -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"*  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"   8 M ->   15 M -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"   9 R ->    6 R ->    3 L -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"  10 R -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"* 11 M ->    3 L -> *  7 R ->    4 R ->    1 L ->    5 L ->    9 M ->   16",
+"  12 M ->    4 M -> * 11 M ->    3 L -> *  7 R ->    4 R ->    1 L ->    5 L ->    9 M ->   16",
+"  13 R ->   10 R -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"  14 L ->    3 L -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"  15 M -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16",
+"  16 M ->    9 R ->    6 R ->    3 L -> *  7 L -> * 11 R ->    8 R ->    5 L ->    9 M ->   16"];
+	return dummyreturn;
+}
+
+function view_paths(){
+	var required = Array(17).fill(false);
+	var roominput = document.getElementsByName("room");
+	
+	for(var i=1;i<=16;i++){
+		if(roominput[i-1].checked)
+			required[i] = true;
+	}
+	
+	var output = calc_paths(required);
+	var outputtag = document.getElementById("outputbox");
+	outputtag.innerHTML = "";
+	for(var outline of output){
+		outputtag.innerHTML += (outline + "<br />");
+	};
+}
+
+</script>
+
+<br />
+
+<div style="font-family:consolas; white-space:pre;" id="outputbox"> submit to view output
+<!-- reference: https://stackoverflow.com/questions/4503001/multiple-spaces-between-words-in-html-without-nbsp -->
+</div>
+
+
+</body>
+</html>
